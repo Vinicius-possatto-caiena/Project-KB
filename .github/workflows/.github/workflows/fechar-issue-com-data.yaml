@@ -1,0 +1,29 @@
+name: Registrar data de conclusão da issue
+
+on:
+  issues:
+    types: [closed]
+
+jobs:
+  adicionar-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Adicionar data ao corpo da issue
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const issueNumber = context.issue.number;
+            const { data: issue } = await github.issues.get({
+              ...context.repo,
+              issue_number: issueNumber
+            });
+
+            const closeDate = new Date().toISOString().split('T')[0];
+            const novoCorpo = `${issue.body || ''}\n\n✅ **Concluída em:** ${closeDate}`;
+
+            await github.issues.update({
+              ...context.repo,
+              issue_number: issueNumber,
+              body: novoCorpo
+            });
