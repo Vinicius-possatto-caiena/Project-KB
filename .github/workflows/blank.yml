@@ -19,7 +19,9 @@ jobs:
           script: |
             const projectNumber = 1; // Altere para o número do seu projeto se não for 1
             const fieldName = "Data de Conclusão";
-            const closedDate = context.payload.issue.closed_at ? context.payload.issue.closed_at.split("T")[0] : new Date().toISOString().split("T")[0];
+            const closedDate = context.payload.issue.closed_at
+              ? context.payload.issue.closed_at.split("T")[0]
+              : new Date().toISOString().split("T")[0];
 
             // 1. Buscar projetos do repo
             const { repository } = await github.graphql(`
@@ -86,4 +88,41 @@ jobs:
                         dataType
                       }
                     }
-                 
+                  }
+                }
+              }
+            `, { projectId: project.id });
+
+            console.log("Campos disponíveis:", projectNode.fields.nodes);
+
+            const field = projectNode.fields.nodes.find(f => f.name === fieldName);
+            console.log("Campo encontrado:", field);
+
+            if (!field) {
+              core.setFailed('Campo de data não encontrado.');
+              return;
+            }
+
+            // 4. Atualizar campo
+            await github.graphql(`
+              mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: Date!) {
+                updateProjectV2ItemFieldValue(
+                  input: {
+                    projectId: $projectId,
+                    itemId: $itemId,
+                    fieldId: $fieldId,
+                    value: { date: $value }
+                  }
+                ) {
+                  projectV2Item {
+                    id
+                  }
+                }
+              }
+            `, {
+              projectId: project.id,
+              itemId: item.id,
+              fieldId: field.id,
+              value: closedDate,
+            });
+            console.log(`Campo "Data de Conclusão" atualizado para ${closedDate}!`);
