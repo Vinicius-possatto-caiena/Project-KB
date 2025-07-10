@@ -17,11 +17,21 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            // Tenta obter a issue e a data de fechamento (se houver)
+            let issue = context.payload.issue;
+            let closedDate;
+
+            if (issue && issue.closed_at) {
+              closedDate = issue.closed_at.split("T")[0];
+              console.log(`Data de fechamento da issue: ${closedDate}`);
+            } else {
+              // Se rodar manualmente, usa a data atual
+              closedDate = new Date().toISOString().split("T")[0];
+              console.log(`Rodando manualmente, usando data atual: ${closedDate}`);
+            }
+
             const projectNumber = 1; // Altere para o número do seu projeto se não for 1
             const fieldName = "Data de Conclusão";
-            const closedDate = context.payload.issue.closed_at
-              ? context.payload.issue.closed_at.split("T")[0]
-              : new Date().toISOString().split("T")[0];
 
             // 1. Buscar projetos do repo
             const { repository } = await github.graphql(`
@@ -49,6 +59,11 @@ jobs:
             }
 
             // 2. Buscar items da issue
+            if (!issue) {
+              core.setFailed('Não foi possível identificar a issue. Este workflow deve ser rodado ao fechar uma issue ou adaptado para pegar a issue de outra forma.');
+              return;
+            }
+
             const { node } = await github.graphql(`
               query($nodeId: ID!) {
                 node(id: $nodeId) {
@@ -64,7 +79,7 @@ jobs:
                   }
                 }
               }
-            `, { nodeId: context.payload.issue.node_id });
+            `, { nodeId: issue.node_id });
 
             console.log("Itens no projeto para essa issue:", node.projectItems.nodes);
 
