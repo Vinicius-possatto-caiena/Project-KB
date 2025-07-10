@@ -3,10 +3,10 @@ name: Atualizar Data de Conclusão no Project
 on:
   issues:
     types: [closed]
+  workflow_dispatch:
 
 permissions:
   issues: write
- 
 
 jobs:
   update-project-date:
@@ -17,10 +17,11 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const projectNumber = 1;
+            const projectNumber = 1; // Altere para o número do seu projeto se não for 1
             const fieldName = "Data de Conclusão";
-            const closedDate = context.payload.issue.closed_at.split("T")[0];
+            const closedDate = context.payload.issue.closed_at ? context.payload.issue.closed_at.split("T")[0] : new Date().toISOString().split("T")[0];
 
+            // 1. Buscar projetos do repo
             const { repository } = await github.graphql(`
               query($owner: String!, $repo: String!) {
                 repository(owner: $owner, name: $repo) {
@@ -45,6 +46,7 @@ jobs:
               return;
             }
 
+            // 2. Buscar items da issue
             const { node } = await github.graphql(`
               query($nodeId: ID!) {
                 node(id: $nodeId) {
@@ -72,6 +74,7 @@ jobs:
               return;
             }
 
+            // 3. Buscar campos do projeto
             const { node: projectNode } = await github.graphql(`
               query($projectId: ID!) {
                 node(id: $projectId) {
@@ -83,40 +86,4 @@ jobs:
                         dataType
                       }
                     }
-                  }
-                }
-              }
-            `, { projectId: project.id });
-
-            console.log("Campos disponíveis:", projectNode.fields.nodes);
-
-            const field = projectNode.fields.nodes.find(f => f.name === fieldName);
-            console.log("Campo encontrado:", field);
-
-            if (!field) {
-              core.setFailed('Campo de data não encontrado.');
-              return;
-            }
-
-            await github.graphql(`
-              mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: Date!) {
-                updateProjectV2ItemFieldValue(
-                  input: {
-                    projectId: $projectId,
-                    itemId: $itemId,
-                    fieldId: $fieldId,
-                    value: { date: $value }
-                  }
-                ) {
-                  projectV2Item {
-                    id
-                  }
-                }
-              }
-            `, {
-              projectId: project.id,
-              itemId: item.id,
-              fieldId: field.id,
-              value: closedDate,
-            });
-            console.log(`Campo "Data de Conclusão" atualizado para ${closedDate}!`);
+                 
