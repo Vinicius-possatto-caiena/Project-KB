@@ -6,6 +6,7 @@ on:
 
 permissions:
   issues: write
+
 jobs:
   update-close-date:
     runs-on: ubuntu-latest
@@ -14,8 +15,8 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const projectNumber = 1; // troque para o número do seu projeto
-            const fieldName = "Data de Fechamento"; // troque para o nome exato do campo
+            const projectNumber = 1; // Troque pelo número do seu Project
+            const fieldName = "Data de Fechamento"; // Troque pelo nome exato do campo
 
             // 1. Buscar projetos do repositório
             const projects = await github.graphql(`
@@ -26,10 +27,13 @@ jobs:
                       id
                       number
                       title
-                      fields(first: 20) {
+                      fields(first: 50) {
                         nodes {
-                          id
-                          name
+                          ... on ProjectV2FieldCommon {
+                            id
+                            name
+                            dataType
+                          }
                         }
                       }
                     }
@@ -58,50 +62,9 @@ jobs:
               query($projectId: ID!, $issueId: ID!) {
                 node(id: $projectId) {
                   ... on ProjectV2 {
-                    items(first: 20, filterBy: {contentId: $issueId}) {
+                    items(first: 100) {
                       nodes {
                         id
                         content {
                           ... on Issue {
-                            id
-                            number
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            `, {
-              projectId: project.id,
-              issueId: context.payload.issue.node_id,
-            });
-
-            const item = items.node.items.nodes.find(i => i.content && i.content.id === context.payload.issue.node_id);
-            if (!item) {
-              core.setFailed('Item não encontrado no projeto.');
-              return;
-            }
-
-            // 3. Atualizar o campo
-            const closeDate = new Date().toISOString().split('T')[0];
-            await github.graphql(`
-              mutation($itemId: ID!, $fieldId: ID!, $value: String!) {
-                updateProjectV2ItemFieldValue(
-                  input: {
-                    projectId: "${project.id}",
-                    itemId: $itemId,
-                    fieldId: $fieldId,
-                    value: { text: $value }
-                  }
-                ) {
-                  projectV2Item {
-                    id
-                  }
-                }
-              }
-            `, {
-              itemId: item.id,
-              fieldId: field.id,
-              value: closeDate,
-            });
+                           
