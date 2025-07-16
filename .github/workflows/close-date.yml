@@ -11,17 +11,18 @@ jobs:
   update-close-date:
     runs-on: ubuntu-latest
     steps:
-      - name: Atualizar campo de data de fechamento no Project
+      - name: Atualizar campo de data de fechamento no Project de Usuário
         uses: actions/github-script@v7
         with:
           script: |
-            const projectNumber = 2; // Troque pelo número do seu Project
-            const fieldName = "Data de Conclusão"; // Troque pelo nome exato do campo
+            const projectNumber = 2; // Seu número de projeto
+            const fieldName = "Data de Conclusão"; // Nome exato do campo
+            const login = "Vinicius-possatto-caiena";
 
-            // 1. Buscar projetos do repositório
+            // 1. Buscar projetos do usuário
             const projects = await github.graphql(`
-              query($owner: String!, $repo: String!) {
-                repository(owner: $owner, name: $repo) {
+              query($login: String!) {
+                user(login: $login) {
                   projectsV2(first: 10) {
                     nodes {
                       id
@@ -41,11 +42,10 @@ jobs:
                 }
               }
             `, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              login
             });
 
-            const project = projects.repository.projectsV2.nodes.find(p => p.number === projectNumber);
+            const project = projects.user.projectsV2.nodes.find(p => p.number === projectNumber);
             if (!project) {
               core.setFailed('Projeto não encontrado.');
               return;
