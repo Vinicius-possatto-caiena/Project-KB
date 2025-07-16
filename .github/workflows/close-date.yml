@@ -1,0 +1,22 @@
+name: Adicionar data de fechamento na issue
+
+on:
+  issues:
+    types:
+      - closed
+
+jobs:
+  add-close-date:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Adicionar comentário com data de fechamento
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const closeDate = new Date().toISOString().split('T')[0];
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `⏰ Issue fechada em: **${closeDate}**`
+            });
