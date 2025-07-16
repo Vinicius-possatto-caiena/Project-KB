@@ -6,8 +6,6 @@ on:
 
 permissions:
   issues: write
-  project: write
-
 jobs:
   update-close-date:
     runs-on: ubuntu-latest
