@@ -15,8 +15,8 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const projectNumber = 1; // Troque pelo número do seu Project
-            const fieldName = "Data de Fechamento"; // Troque pelo nome exato do campo
+            const projectNumber = 2; // Troque pelo número do seu Project
+            const fieldName = "Data de Conclusão"; // Troque pelo nome exato do campo
 
             // 1. Buscar projetos do repositório
             const projects = await github.graphql(`
@@ -33,6 +33,10 @@ jobs:
                             id
                             name
                             dataType
+                          }
+                          ... on ProjectV2DateField {
+                            id
+                            name
                           }
                         }
                       }
@@ -51,6 +55,7 @@ jobs:
               return;
             }
 
+            // Procura o campo do tipo data pelo nome
             const field = project.fields.nodes.find(f => f.name === fieldName);
             if (!field) {
               core.setFailed('Campo não encontrado.');
@@ -67,4 +72,47 @@ jobs:
                         id
                         content {
                           ... on Issue {
-                           
+                            id
+                            number
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `, {
+              projectId: project.id,
+              issueId: context.payload.issue.node_id,
+            });
+
+            const item = items.node.items.nodes.find(i => i.content && i.content.id === context.payload.issue.node_id);
+            if (!item) {
+              core.setFailed('Item não encontrado no projeto.');
+              return;
+            }
+
+            // 3. Atualizar o campo do tipo data
+            const closeDate = new Date().toISOString().split('T')[0];
+            await github.graphql(`
+              mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: Date!) {
+                updateProjectV2ItemFieldValue(
+                  input: {
+                    projectId: $projectId,
+                    itemId: $itemId,
+                    fieldId: $fieldId,
+                    value: { date: $value }
+                  }
+                ) {
+                  projectV2Item {
+                    id
+                  }
+                }
+              }
+            `, {
+              projectId: project.id,
+              itemId: item.id,
+              fieldId: field.id,
+              value: closeDate,
+            });
+            console.log(`Campo "${fieldName}" atualizado com a data de fechamento: ${closeDate}`);
