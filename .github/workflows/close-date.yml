@@ -1,22 +1,109 @@
-name: Adicionar data de fechamento na issue
+name: Atualizar campo "Data de Fechamento" no Project
 
 on:
   issues:
-    types:
-      - closed
+    types: [closed]
+
+permissions:
+  issues: write
+  projects: write
 
 jobs:
-  add-close-date:
+  update-close-date:
     runs-on: ubuntu-latest
     steps:
-      - name: Adicionar comentário com data de fechamento
+      - name: Atualizar campo de data de fechamento no Project
         uses: actions/github-script@v7
         with:
           script: |
-            const closeDate = new Date().toISOString().split('T')[0];
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
+            const projectNumber = 1; // troque para o número do seu projeto
+            const fieldName = "Data de Fechamento"; // troque para o nome exato do campo
+
+            // 1. Buscar projetos do repositório
+            const projects = await github.graphql(`
+              query($owner: String!, $repo: String!) {
+                repository(owner: $owner, name: $repo) {
+                  projectsV2(first: 10) {
+                    nodes {
+                      id
+                      number
+                      title
+                      fields(first: 20) {
+                        nodes {
+                          id
+                          name
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `, {
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `⏰ Issue fechada em: **${closeDate}**`
+            });
+
+            const project = projects.repository.projectsV2.nodes.find(p => p.number === projectNumber);
+            if (!project) {
+              core.setFailed('Projeto não encontrado.');
+              return;
+            }
+
+            const field = project.fields.nodes.find(f => f.name === fieldName);
+            if (!field) {
+              core.setFailed('Campo não encontrado.');
+              return;
+            }
+
+            // 2. Buscar o item da issue no Project
+            const items = await github.graphql(`
+              query($projectId: ID!, $issueId: ID!) {
+                node(id: $projectId) {
+                  ... on ProjectV2 {
+                    items(first: 20, filterBy: {contentId: $issueId}) {
+                      nodes {
+                        id
+                        content {
+                          ... on Issue {
+                            id
+                            number
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `, {
+              projectId: project.id,
+              issueId: context.payload.issue.node_id,
+            });
+
+            const item = items.node.items.nodes.find(i => i.content && i.content.id === context.payload.issue.node_id);
+            if (!item) {
+              core.setFailed('Item não encontrado no projeto.');
+              return;
+            }
+
+            // 3. Atualizar o campo
+            const closeDate = new Date().toISOString().split('T')[0];
+            await github.graphql(`
+              mutation($itemId: ID!, $fieldId: ID!, $value: String!) {
+                updateProjectV2ItemFieldValue(
+                  input: {
+                    projectId: "${project.id}",
+                    itemId: $itemId,
+                    fieldId: $fieldId,
+                    value: { text: $value }
+                  }
+                ) {
+                  projectV2Item {
+                    id
+                  }
+                }
+              }
+            `, {
+              itemId: item.id,
+              fieldId: field.id,
+              value: closeDate,
             });
